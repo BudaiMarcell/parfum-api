@@ -12,22 +12,35 @@ class AdminProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with(['category', 'primaryImage'])
-            ->withTrashed();
+        // Alapértelmezetten csak aktív (nem soft-deleted) termékeket listázunk.
+        // Ha admin látni akarja az archiváltakat, külön ?with_trashed=1 paraméter kell.
+        $query = Product::with(['category', 'primaryImage']);
 
-        if ($request->has('search')) {
+        if ($request->boolean('with_trashed')) {
+            $query->withTrashed();
+        }
+
+        if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('like', '%' . $request->search . '%');
+                  ->orWhere('description', 'like', '%' . $request->search . '%');
             });
         }
 
-        if ($request->has('category_id')) {
+        if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('gender')) {
+            $query->where('gender', $request->gender);
         }
 
         if ($request->has('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        if ($request->boolean('low_stock')) {
+            $query->where('stock_quantity', '<=', 10);
         }
 
         $products = $query->orderBy('created_at', 'desc')
@@ -111,5 +124,45 @@ class AdminProductController extends Controller
         $product->delete();
 
         return response()->json(['message' => 'Termék sikeresen törölve.']);
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+        ]);
+
+        $count = Product::whereIn('id', $validated['ids'])->delete();
+
+        return response()->json([
+            'message' => "{$count} termék sikeresen törölve.",
+            'count'   => $count,
+        ]);
+    }
+
+    public function bulkUpdate(Request $request)
+    {
+        $validated = $request->validate([
+            'ids'       => 'required|array|min:1',
+            'ids.*'     => 'integer|exists:products,id',
+            'is_active' => 'sometimes|boolean',
+        ]);
+
+        $update = [];
+        if (array_key_exists('is_active', $validated)) {
+            $update['is_active'] = $validated['is_active'];
+        }
+
+        if (empty($update)) {
+            return response()->json(['message' => 'Nincs frissítendő mező.'], 422);
+        }
+
+        $count = Product::whereIn('id', $validated['ids'])->update($update);
+
+        return response()->json([
+            'message' => "{$count} termék sikeresen frissítve.",
+            'count'   => $count,
+        ]);
     }
 }

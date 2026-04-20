@@ -10,17 +10,18 @@ class AdminOrderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Order::with(['user', 'address', 'items.product']);
+        $query = Order::with(['user', 'address', 'items.product'])
+                      ->withCount('items');
 
-        if ($request->has('status')) {
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        if ($request->has('payment_status')) {
+        if ($request->filled('payment_status')) {
             $query->where('payment_status', $request->payment_status);
         }
 
-        if ($request->has('search')) {
+        if ($request->filled('search')) {
             $query->whereHas('user', function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
                   ->orWhere('email', 'like', '%' . $request->search . '%');
@@ -36,6 +37,7 @@ class AdminOrderController extends Controller
     public function show(int $id)
     {
         $order = Order::with(['user', 'address', 'items.product.primaryImage'])
+            ->withCount('items')
             ->findOrFail($id);
 
         return response()->json($order);
@@ -71,5 +73,13 @@ class AdminOrderController extends Controller
             'message' => 'Fizetési státusz frissítve.',
             'order'   => $order
         ]);
+    }
+
+    public function destroy(int $id)
+    {
+        $order = Order::findOrFail($id);
+        $order->delete();
+
+        return response()->json(['message' => 'Rendelés törölve.']);
     }
 }
