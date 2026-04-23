@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
 class AdminOrderController extends Controller
@@ -51,7 +52,12 @@ class AdminOrderController extends Controller
             'status' => 'required|in:pending,processing,shipped,arrived,canceled,refunded',
         ]);
 
+        $oldStatus = $order->status;
         $order->update(['status' => $validated['status']]);
+
+        AuditLogger::log('status_changed', 'Order', $order->id,
+            "Rendelés #{$order->id} státusza: {$oldStatus} → {$validated['status']}",
+            ['old' => $oldStatus, 'new' => $validated['status']]);
 
         return response()->json([
             'message' => 'Rendelés státusza frissítve.',
@@ -67,7 +73,12 @@ class AdminOrderController extends Controller
             'payment_status' => 'required|in:pending,processing,paid,failed,refunded',
         ]);
 
+        $oldPayment = $order->payment_status;
         $order->update(['payment_status' => $validated['payment_status']]);
+
+        AuditLogger::log('payment_changed', 'Order', $order->id,
+            "Rendelés #{$order->id} fizetés: {$oldPayment} → {$validated['payment_status']}",
+            ['old' => $oldPayment, 'new' => $validated['payment_status']]);
 
         return response()->json([
             'message' => 'Fizetési státusz frissítve.',
@@ -79,6 +90,8 @@ class AdminOrderController extends Controller
     {
         $order = Order::findOrFail($id);
         $order->delete();
+
+        AuditLogger::log('deleted', 'Order', $id, "Rendelés #{$id} törölve");
 
         return response()->json(['message' => 'Rendelés törölve.']);
     }

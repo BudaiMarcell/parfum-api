@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -91,6 +92,10 @@ class AdminProductController extends Controller
             ]);
         }
 
+        AuditLogger::log('created', 'Product', $product->id,
+            "Új termék létrehozva: {$product->name}",
+            ['new' => $product->toArray()]);
+
         return response()->json($product->load('images'), 201);
     }
 
@@ -113,7 +118,12 @@ class AdminProductController extends Controller
             $validated['slug'] = Str::slug($validated['name']);
         }
 
+        $old = $product->only(array_keys($validated));
         $product->update($validated);
+
+        AuditLogger::log('updated', 'Product', $product->id,
+            "Termék frissítve: {$product->name}",
+            ['old' => $old, 'new' => $validated]);
 
         return response()->json($product->load(['category', 'images']));
     }
@@ -121,7 +131,11 @@ class AdminProductController extends Controller
     public function destroy(int $id)
     {
         $product = Product::findOrFail($id);
+        $name = $product->name;
         $product->delete();
+
+        AuditLogger::log('deleted', 'Product', $id,
+            "Termék törölve: {$name}");
 
         return response()->json(['message' => 'Termék sikeresen törölve.']);
     }
@@ -134,6 +148,10 @@ class AdminProductController extends Controller
         ]);
 
         $count = Product::whereIn('id', $validated['ids'])->delete();
+
+        AuditLogger::log('bulk_deleted', 'Product', null,
+            "Tömeges törlés: {$count} termék",
+            ['ids' => $validated['ids']]);
 
         return response()->json([
             'message' => "{$count} termék sikeresen törölve.",
@@ -159,6 +177,10 @@ class AdminProductController extends Controller
         }
 
         $count = Product::whereIn('id', $validated['ids'])->update($update);
+
+        AuditLogger::log('bulk_updated', 'Product', null,
+            "Tömeges frissítés: {$count} termék",
+            ['ids' => $validated['ids'], 'changes' => $update]);
 
         return response()->json([
             'message' => "{$count} termék sikeresen frissítve.",

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminProductController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AdminCouponController;
+use App\Http\Controllers\Admin\AdminAuditLogController;
 use App\Http\Controllers\Analytics\TrackingController;
 use App\Http\Controllers\Analytics\AnalyticsDashboardController;
 
@@ -24,6 +25,11 @@ Route::get('/products/{slug}',   [ProductController::class, 'show']);
 
 Route::post('/analytics/track', [TrackingController::class, 'store'])
     ->middleware(['tracking.key', 'throttle:60,1']);
+
+// Heartbeat — called ~every 30s while the page is visible. Higher throttle
+// limit since multiple tabs × long sessions can add up quickly.
+Route::post('/analytics/ping', [TrackingController::class, 'ping'])
+    ->middleware(['tracking.key', 'throttle:240,1']);
 
 Route::get('/cart',          [CartController::class, 'index']);
 Route::post('/cart',         [CartController::class, 'store']);
@@ -73,9 +79,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/coupons/{id}',    [AdminCouponController::class, 'update']);
         Route::delete('/coupons/{id}', [AdminCouponController::class, 'destroy']);
 
+        Route::get('/audit-logs', [AdminAuditLogController::class, 'index']);
+
         Route::get('/analytics/overview',     [AnalyticsDashboardController::class, 'overview']);
         Route::get('/analytics/hourly',       [AnalyticsDashboardController::class, 'hourly']);
+        Route::get('/analytics/daily',        [AnalyticsDashboardController::class, 'daily']);
         Route::get('/analytics/top-products', [AnalyticsDashboardController::class, 'topProducts']);
+        Route::get('/analytics/devices',      [AnalyticsDashboardController::class, 'devices']);
+        Route::get('/analytics/funnel',       [AnalyticsDashboardController::class, 'funnel']);
         Route::get('/analytics/realtime',     [AnalyticsDashboardController::class, 'realtime']);
     });
 });

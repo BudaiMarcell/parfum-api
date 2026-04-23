@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Coupons;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -75,6 +76,11 @@ class AdminCouponController extends Controller
         $data['is_active']  = $data['is_active'] ?? true;
 
         $coupon = Coupons::create($data);
+
+        AuditLogger::log('created', 'Coupon', $coupon->id,
+            "Új kupon létrehozva: {$coupon->coupon_code}",
+            ['new' => $coupon->toArray()]);
+
         return response()->json($coupon, 201);
     }
 
@@ -99,14 +105,24 @@ class AdminCouponController extends Controller
             ], 422);
         }
 
+        $old = $coupon->only(array_keys($data));
         $coupon->update($data);
+
+        AuditLogger::log('updated', 'Coupon', $coupon->id,
+            "Kupon frissítve: {$coupon->coupon_code}",
+            ['old' => $old, 'new' => $data]);
+
         return response()->json($coupon);
     }
 
     public function destroy($id)
     {
         $coupon = Coupons::findOrFail($id);
+        $code = $coupon->coupon_code;
         $coupon->delete();
+
+        AuditLogger::log('deleted', 'Coupon', $id, "Kupon törölve: {$code}");
+
         return response()->json(['message' => 'Kupon törölve.']);
     }
 }
