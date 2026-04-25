@@ -25,32 +25,46 @@ class AnalyticsDashboardController extends Controller
             $weekAgo   = now()->subDays(7);
             $monthAgo  = now()->subDays(30);
 
+            // "Unique visitors" = distinct people per period. A person is
+            // fingerprinted by logged-in user_id when available, otherwise by
+            // IP + device_type — so the same laptop visiting twice in one day
+            // counts once, but the same IP from a phone counts as a second
+            // visitor. Matches the product requirement: "one person opens the
+            // page once, that counts as one visitor, even when navigating
+            // around". Sessions (tab-lifecycles) can be higher than visitors.
+            $visitorFingerprint = DB::raw(
+                "COUNT(DISTINCT COALESCE(CAST(user_id AS CHAR), CONCAT(ip_address, '|', device_type)))"
+            );
+
             return response()->json([
                 'today' => [
-                    'pageviews'       => Event::where('event_type', 'pageview')->whereDate('created_at', $today)->count(),
-                    'unique_sessions' => AnalyticsSession::whereDate('started_at', $today)->count(),
-                    'add_to_carts'    => Event::where('event_type', 'add_to_cart')->whereDate('created_at', $today)->count(),
-                    'checkouts'       => Event::where('event_type', 'checkout')->whereDate('created_at', $today)->count(),
-                    'orders'          => Order::whereDate('created_at', $today)->count(),
-                    'revenue'         => (float) Order::whereDate('created_at', $today)
+                    'pageviews'        => Event::where('event_type', 'pageview')->whereDate('created_at', $today)->count(),
+                    'unique_sessions'  => AnalyticsSession::whereDate('started_at', $today)->count(),
+                    'unique_visitors'  => (int) AnalyticsSession::whereDate('started_at', $today)->value($visitorFingerprint),
+                    'add_to_carts'     => Event::where('event_type', 'add_to_cart')->whereDate('created_at', $today)->count(),
+                    'checkouts'        => Event::where('event_type', 'checkout')->whereDate('created_at', $today)->count(),
+                    'orders'           => Order::whereDate('created_at', $today)->count(),
+                    'revenue'          => (float) Order::whereDate('created_at', $today)
                         ->whereIn('status', ['paid', 'shipped', 'delivered', 'completed'])
                         ->sum('total_amount'),
                 ],
                 'this_week' => [
-                    'pageviews'       => Event::where('event_type', 'pageview')->where('created_at', '>=', $weekAgo)->count(),
-                    'unique_sessions' => AnalyticsSession::where('started_at', '>=', $weekAgo)->count(),
-                    'new_visitors'    => AnalyticsSession::where('started_at', '>=', $weekAgo)->where('is_new_visitor', true)->count(),
-                    'orders'          => Order::where('created_at', '>=', $weekAgo)->count(),
-                    'revenue'         => (float) Order::where('created_at', '>=', $weekAgo)
+                    'pageviews'        => Event::where('event_type', 'pageview')->where('created_at', '>=', $weekAgo)->count(),
+                    'unique_sessions'  => AnalyticsSession::where('started_at', '>=', $weekAgo)->count(),
+                    'unique_visitors'  => (int) AnalyticsSession::where('started_at', '>=', $weekAgo)->value($visitorFingerprint),
+                    'new_visitors'     => AnalyticsSession::where('started_at', '>=', $weekAgo)->where('is_new_visitor', true)->count(),
+                    'orders'           => Order::where('created_at', '>=', $weekAgo)->count(),
+                    'revenue'          => (float) Order::where('created_at', '>=', $weekAgo)
                         ->whereIn('status', ['paid', 'shipped', 'delivered', 'completed'])
                         ->sum('total_amount'),
                 ],
                 'this_month' => [
-                    'pageviews'       => Event::where('event_type', 'pageview')->where('created_at', '>=', $monthAgo)->count(),
-                    'unique_sessions' => AnalyticsSession::where('started_at', '>=', $monthAgo)->count(),
-                    'new_visitors'    => AnalyticsSession::where('started_at', '>=', $monthAgo)->where('is_new_visitor', true)->count(),
-                    'orders'          => Order::where('created_at', '>=', $monthAgo)->count(),
-                    'revenue'         => (float) Order::where('created_at', '>=', $monthAgo)
+                    'pageviews'        => Event::where('event_type', 'pageview')->where('created_at', '>=', $monthAgo)->count(),
+                    'unique_sessions'  => AnalyticsSession::where('started_at', '>=', $monthAgo)->count(),
+                    'unique_visitors'  => (int) AnalyticsSession::where('started_at', '>=', $monthAgo)->value($visitorFingerprint),
+                    'new_visitors'     => AnalyticsSession::where('started_at', '>=', $monthAgo)->where('is_new_visitor', true)->count(),
+                    'orders'           => Order::where('created_at', '>=', $monthAgo)->count(),
+                    'revenue'          => (float) Order::where('created_at', '>=', $monthAgo)
                         ->whereIn('status', ['paid', 'shipped', 'delivered', 'completed'])
                         ->sum('total_amount'),
                 ],
@@ -167,8 +181,12 @@ class AnalyticsDashboardController extends Controller
             ->groupBy('product_id')
             ->orderByDesc('total_qty')
             ->limit(10)
+            // withTrashed(): a Product soft-delete-elt (SoftDeletes trait), és az
+            // admin UI-n is látni akarjuk az eladott, de azóta törölt termékeket
+            // — a WPF oldal "(törölve)" jelzéssel különbözteti meg őket.
             ->with(['product' => function ($q) {
-                $q->select('id', 'name', 'price', 'category_id')
+                $q->withTrashed()
+                  ->select('id', 'name', 'price', 'category_id', 'deleted_at')
                   ->with('category:id,name');
             }])
             ->get();

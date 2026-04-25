@@ -32,7 +32,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // dropIfExists removes the whole table including the deleted_at
+        // column, so no further $table->dropSoftDeletes() is needed
+        // (and it would fail anyway — $table is not in scope here).
         Schema::dropIfExists('products');
-        $table->dropSoftDeletes();
     }
 };

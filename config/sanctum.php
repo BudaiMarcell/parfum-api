@@ -1,7 +1,5 @@
 <?php
 
-use Laravel\Sanctum\Sanctum;
-
 return [
 
     /*
@@ -15,12 +13,13 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        // Sanctum::currentRequestHost(),
-    ))),
+    // Dev default stays broad (localhost + 127.0.0.1 on common ports). In
+    // production set SANCTUM_STATEFUL_DOMAINS explicitly — never let an
+    // unlisted host issue/consume session cookies.
+    'stateful' => explode(',', env(
+        'SANCTUM_STATEFUL_DOMAINS',
+        'localhost,localhost:3000,localhost:5173,127.0.0.1,127.0.0.1:8000,::1'
+    )),
 
     /*
     |--------------------------------------------------------------------------
@@ -47,7 +46,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Default: 14 days (20160 minutes). Override per environment via
+    // SANCTUM_EXPIRATION. Null = tokens never expire (unsafe in prod).
+    'expiration' => env('SANCTUM_EXPIRATION', 20160),
 
     /*
     |--------------------------------------------------------------------------

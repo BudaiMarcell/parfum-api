@@ -15,8 +15,11 @@ use App\Http\Controllers\Admin\AdminAuditLogController;
 use App\Http\Controllers\Analytics\TrackingController;
 use App\Http\Controllers\Analytics\AnalyticsDashboardController;
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login',    [AuthController::class, 'login']);
+// Auth endpoints are rate limited to slow down credential stuffing /
+// brute-force attempts. 5 requests per minute per IP is enough for a
+// real user who mistypes their password a few times; attackers see 429.
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/login',    [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::get('/categories',        [CategoryController::class, 'index']);
 Route::get('/categories/{slug}', [CategoryController::class, 'show']);
@@ -24,7 +27,7 @@ Route::get('/products',          [ProductController::class, 'index']);
 Route::get('/products/{slug}',   [ProductController::class, 'show']);
 
 Route::post('/analytics/track', [TrackingController::class, 'store'])
-    ->middleware(['tracking.key', 'throttle:60,1']);
+    ->middleware(['tracking.key', 'throttle:30,1']);
 
 // Heartbeat — called ~every 30s while the page is visible. Higher throttle
 // limit since multiple tabs × long sessions can add up quickly.

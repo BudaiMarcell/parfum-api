@@ -9,19 +9,40 @@ use Illuminate\Support\Facades\Hash;
 
 class AdminSeeder extends Seeder
 {
+    /**
+     * Seed the default admin.
+     *
+     * ONLY runs in local/testing. In production use:
+     *     php artisan make:admin <email> [password]
+     *
+     * The default password comes from the SEED_ADMIN_PASSWORD env var so
+     * each developer can set their own without committing it.
+     */
     public function run(): void
     {
-        User::create([
-            'name'     => 'Admin',
-            'email'    => 'admin@parfumeria.hu',
-            'password' => Hash::make('admin1234'),
-        ]);
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->info('AdminSeeder skipped (APP_ENV != local|testing). Use `php artisan make:admin` in production.');
+            return;
+        }
 
-        Admin::create([
-            'name'     => 'Admin',
-            'email'    => 'admin@parfumeria.hu',
-            'password' => Hash::make('admin1234'),
-            'role'     => 'admin',
-        ]);
+        $email    = 'admin@parfumeria.hu';
+        $password = env('SEED_ADMIN_PASSWORD', 'admin1234');
+
+        User::updateOrCreate(
+            ['email' => $email],
+            [
+                'name'     => 'Admin',
+                'password' => Hash::make($password),
+            ]
+        );
+
+        Admin::updateOrCreate(
+            ['email' => $email],
+            [
+                'name'     => 'Admin',
+                'password' => Hash::make($password),
+                'role'     => 'admin',
+            ]
+        );
     }
 }
