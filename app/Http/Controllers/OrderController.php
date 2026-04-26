@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OrderPlaced;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use App\Http\Resources\OrderResource;
 
 class OrderController extends Controller
@@ -90,6 +93,21 @@ class OrderController extends Controller
 
             return $order;
         });
+
+        // Confirmation email is queued AFTER the transaction commits, never
+        // inside it. If we queued it inside the closure and the transaction
+        // rolled back, the worker would dequeue an Order::find() that
+        // returns null (or worse, a stale row) and throw at render time.
+        try {
+            Mail::to($order->user->email)->queue(new OrderPlaced($order));
+        } catch (\Throwable $e) {
+            // The order is already saved — emailing is best-effort. Log
+            // and move on rather than 500-ing the user after they've paid.
+            Log::warning('Failed to queue order confirmation email', [
+                'order_id' => $order->id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
 
         return new OrderResource($order->load(['items.product', 'address']));
     }

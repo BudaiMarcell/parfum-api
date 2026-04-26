@@ -1,0 +1,52 @@
+# Files that have no business inside the Docker image. Excluding them keeps
+# the build context small (faster `docker build` over slow links) and avoids
+# baking developer secrets / local artifacts into the production image.
+
+# Dependencies (re-resolved by composer in the vendor stage).
+/vendor
+
+# Local environment + secrets — must never be in the image. Values come
+# from compose env_file at runtime.
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Build / cache outputs.
+/bootstrap/cache/*.php
+/storage/app/private/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/testing/*
+/storage/logs/*
+!.gitignore
+
+# Editor / IDE.
+.idea/
+.vscode/
+*.iml
+
+# VCS metadata — present at build time on Windows hosts.
+.git
+.gitattributes
+.gitignore
+
+# Node + Vite — irrelevant to the Laravel image.
+/node_modules
+/public/build
+/public/hot
+
+# Test artifacts.
+/.phpunit.cache
+/.phpunit.result.cache
+/coverage
+
+# OS junk.
+.DS_Store
+Thumbs.db
+
+# Docker support files for OTHER services — only kept here so the api image
+# doesn't include the nginx config in /var/www. We DO want our own
+# docker/entrypoint.sh and docker/nginx/laravel.conf in the build context
+# (the Dockerfile copies them explicitly), so don't blanket-ignore docker/.

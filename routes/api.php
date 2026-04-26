@@ -7,6 +7,8 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\Admin\AdminProductController;
 use App\Http\Controllers\Admin\AdminCategoryController;
 use App\Http\Controllers\Admin\AdminOrderController;
@@ -20,6 +22,13 @@ use App\Http\Controllers\Analytics\AnalyticsDashboardController;
 // real user who mistypes their password a few times; attackers see 429.
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login',    [AuthController::class, 'login'])->middleware('throttle:5,1');
+
+// Email verification — landing route hit by the link in the verification
+// email. Must be `signed` so a tampered or expired URL is rejected at
+// the middleware level. Throttle keeps the endpoint cheap to expose.
+Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verify'])
+    ->middleware(['signed', 'throttle:6,1'])
+    ->name('verification.verify');
 
 Route::get('/categories',        [CategoryController::class, 'index']);
 Route::get('/categories/{slug}', [CategoryController::class, 'show']);
@@ -44,6 +53,30 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
+
+    // Self-service profile management. Splitting password into its own
+    // endpoint keeps the cheap profile fields off the current_password
+    // check — see AuthController::updateProfile / changePassword.
+    Route::put('/me',           [AuthController::class, 'updateProfile']);
+    Route::post('/me/password', [AuthController::class, 'changePassword']);
+
+    // Resend the verification mail. Throttled tighter than register
+    // because it's auth'd — 6/min is plenty for "I didn't get it".
+    Route::post('/email/resend', [AuthController::class, 'resendVerification'])
+        ->middleware('throttle:6,1');
+
+    // Wishlist — keyed by product id in the URL so add/remove are RESTful
+    // and the route doesn't need a request body. Idempotent on both sides.
+    Route::get('/wishlist',                 [WishlistController::class, 'index']);
+    Route::post('/wishlist/{product}',      [WishlistController::class, 'store']);
+    Route::delete('/wishlist/{product}',    [WishlistController::class, 'destroy']);
+
+    // Saved payment methods — see the migration's docblock for what is
+    // (and is NOT) stored. POST accepts only display metadata.
+    Route::get('/payment-methods',          [PaymentMethodController::class, 'index']);
+    Route::post('/payment-methods',         [PaymentMethodController::class, 'store']);
+    Route::put('/payment-methods/{id}',     [PaymentMethodController::class, 'update']);
+    Route::delete('/payment-methods/{id}',  [PaymentMethodController::class, 'destroy']);
 
     Route::get('/addresses',         [AddressController::class, 'index']);
     Route::post('/addresses',        [AddressController::class, 'store']);
